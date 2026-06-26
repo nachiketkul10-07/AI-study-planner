@@ -36,6 +36,7 @@ from utils.ui_helpers import (
 from utils.pomodoro import render_pomodoro_timer
 from utils.analytics import render_analytics_dashboard
 from utils.calendar_export import render_calendar_download
+from utils.pdf_export import generate_pdf_bytes
 from utils.storage import render_save_load_sidebar, auto_save_progress
 
 # ── Page setup ────────────────────────────────────────────────────────────────
@@ -53,6 +54,7 @@ apply_custom_css()
 
 def init_session_state():
     defaults = {
+        "logged_in_user": None,
         "schedule_generated": False,
         "schedule": [],
         "subjects": [],
@@ -94,8 +96,10 @@ with left_col:
 
     # ── Subjects input ─────────────────────────────────────────────────────────
     st.markdown('<div class="section-header">📖 Subjects</div>', unsafe_allow_html=True)
+    default_subjects_str = ", ".join(st.session_state.get("subjects", []))
     raw_subjects = st.text_input(
         label="Enter subjects (comma-separated)",
+        value=default_subjects_str,
         placeholder="e.g. Mathematics, Physics, History",
         help="Separate each subject with a comma.",
     )
@@ -133,10 +137,20 @@ with left_col:
     min_date = date.today() + timedelta(days=1)
     default_date = date.today() + timedelta(days=14)
 
+    # Support loaded exam date in the past for viewing old plans
+    loaded_exam_date = st.session_state.get("exam_date")
+    if loaded_exam_date is None:
+        loaded_exam_date = default_date
+    elif isinstance(loaded_exam_date, str):
+        try:
+            loaded_exam_date = date.fromisoformat(loaded_exam_date)
+        except ValueError:
+            loaded_exam_date = default_date
+
     exam_date = st.date_input(
         label="Select your exam date",
-        value=default_date,
-        min_value=min_date,
+        value=loaded_exam_date,
+        min_value=None,  # No hard limit so past exam dates don't crash the widget
         help="Must be at least 1 day in the future.",
     )
 
@@ -332,11 +346,34 @@ with right_col:
             st.divider()
 
             # Download buttons
-            dl_col1, dl_col2 = st.columns(2)
+            dl_col1, dl_col2, dl_col3 = st.columns(3)
             with dl_col1:
-                render_download_button(md_export, ex_date)
+                try:
+                    pdf_data = generate_pdf_bytes(
+                        subjects=subj,
+                        difficulties=st.session_state["difficulties"],
+                        exam_date=ex_date,
+                        daily_hours=d_hours,
+                        style=s_style,
+                        include_recovery=st.session_state["include_recovery"],
+                        include_tips=inc_tips,
+                        schedule=sched,
+                        allocation=alloc,
+                        topics=st.session_state.get("topics"),
+                    )
+                    st.download_button(
+                        label="📄 Export to PDF (.pdf)",
+                        data=pdf_data,
+                        file_name=f"study_plan_{ex_date.strftime('%Y%m%d')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                    )
+                except Exception as e:
+                    st.error(f"Error generating PDF: {e}")
             with dl_col2:
                 render_calendar_download(sched, s_style, ex_date)
+            with dl_col3:
+                render_download_button(md_export, ex_date)
 
             st.caption("*Tip: Import the .ics file into Google Calendar, Outlook, or Apple Calendar.*")
 

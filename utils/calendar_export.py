@@ -4,7 +4,7 @@ Generates RFC 5545 compliant .ics files without external libraries.
 """
 
 import streamlit as st
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 
 
@@ -16,6 +16,22 @@ def _escape_ics_text(text: str) -> str:
         .replace(",", "\\,")
         .replace("\n", "\\n")
     )
+
+
+def _fold_line(line: str) -> str:
+    """
+    Fold long lines to comply with RFC 5545 (limit to 75 octets/bytes).
+    Each folded line segment starts with a CRLF followed by a single space.
+    """
+    # Fold at 70 characters to be safely under 75 bytes
+    if len(line) <= 70:
+        return line
+    parts = [line[:70]]
+    remaining = line[70:]
+    while remaining:
+        parts.append(" " + remaining[:69])
+        remaining = remaining[69:]
+    return "\r\n".join(parts)
 
 
 def generate_ics_content(
@@ -34,6 +50,9 @@ def generate_ics_content(
     Returns:
         String containing the full ICS file content.
     """
+    # dtstamp MUST be in UTC format (with a 'Z') and is required for all VEVENTs
+    dtstamp_str = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
@@ -41,7 +60,6 @@ def generate_ics_content(
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
         "X-WR-CALNAME:AI Study Plan",
-        "X-WR-TIMEZONE:UTC",
     ]
 
     for day in schedule:
@@ -56,7 +74,7 @@ def generate_ics_content(
             topic = task.get("topic", "")
             duration_min = task["duration_min"]
 
-            # Build event times
+            # Build event times (naive local / floating time)
             dt_start = datetime(
                 study_date.year, study_date.month, study_date.day,
                 current_hour, current_minute
@@ -94,6 +112,7 @@ def generate_ics_content(
             lines.extend([
                 "BEGIN:VEVENT",
                 f"UID:{uid}",
+                f"DTSTAMP:{dtstamp_str}",
                 f"DTSTART:{dt_start.strftime('%Y%m%dT%H%M%S')}",
                 f"DTEND:{dt_end.strftime('%Y%m%dT%H%M%S')}",
                 f"SUMMARY:{_escape_ics_text(summary)}",
@@ -104,7 +123,10 @@ def generate_ics_content(
             ])
 
     lines.append("END:VCALENDAR")
-    return "\r\n".join(lines)
+    
+    # Fold lines according to RFC 5545 before joining
+    folded_lines = [_fold_line(line) for line in lines]
+    return "\r\n".join(folded_lines)
 
 
 def render_calendar_download(schedule: list[dict], style: str, exam_date):
@@ -119,3 +141,4 @@ def render_calendar_download(schedule: list[dict], style: str, exam_date):
         mime="text/calendar",
         use_container_width=True,
     )
+

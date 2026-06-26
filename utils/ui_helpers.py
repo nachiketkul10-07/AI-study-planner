@@ -187,6 +187,83 @@ def apply_custom_css():
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
     }
+
+    /* ── Responsive HTML Summary Grid ───────────────────────────── */
+    .summary-container {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-bottom: 1.5rem;
+        width: 100%;
+    }
+
+    .summary-card {
+        background: linear-gradient(135deg, #1a1a2e, #16213e);
+        border-radius: 10px;
+        padding: 14px;
+        text-align: center;
+        border: 1px solid rgba(108, 99, 255, 0.25);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+
+    .summary-card .value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #3ECFCF;
+        line-height: 1.2;
+    }
+
+    .summary-card .label {
+        font-size: 0.8rem;
+        color: #aaa;
+        margin-top: 4px;
+        font-weight: 500;
+    }
+
+    /* ── Responsive/Mobile Media Queries ─────────────────────────── */
+    @media (max-width: 768px) {
+        .main-title {
+            font-size: 1.8rem;
+            text-align: center;
+            margin-bottom: 0.4rem;
+        }
+        .subtitle {
+            font-size: 0.9rem;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .feature-badges {
+            justify-content: center;
+        }
+        .summary-container {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        .summary-card {
+            padding: 10px;
+        }
+        .summary-card .value {
+            font-size: 1.4rem;
+        }
+        .summary-card .label {
+            font-size: 0.72rem;
+        }
+        .day-card {
+            padding: 10px 12px;
+        }
+        .stButton > button {
+            width: 100% !important;
+        }
+        /* Streamlit adjustments for mobile tabs */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 4px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding-left: 8px;
+            padding-right: 8px;
+            font-size: 0.85rem;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -215,15 +292,28 @@ def render_header():
 
 def render_summary_cards(schedule: list[dict], daily_hours: float, exam_date: date):
     summary = compute_summary(schedule, daily_hours, exam_date)
-    cols = st.columns(4)
-    metrics = [
-        ("📅 Days Left", summary["total_days"]),
-        ("📖 Study Days", summary["study_days"]),
-        ("⏱️ Total Hours", f"{summary['total_hours']} h"),
-        ("📊 Avg / Day", f"{summary['avg_daily_hours']} h"),
-    ]
-    for col, (label, value) in zip(cols, metrics):
-        col.metric(label, value)
+    
+    html_content = f"""
+    <div class="summary-container">
+        <div class="summary-card">
+            <div class="value">{summary['total_days']}</div>
+            <div class="label">📅 Days Left</div>
+        </div>
+        <div class="summary-card">
+            <div class="value">{summary['study_days']}</div>
+            <div class="label">📖 Study Days</div>
+        </div>
+        <div class="summary-card">
+            <div class="value">{summary['total_hours']} h</div>
+            <div class="label">⏱️ Total Hours</div>
+        </div>
+        <div class="summary-card">
+            <div class="value">{summary['avg_daily_hours']} h</div>
+            <div class="label">📊 Avg / Day</div>
+        </div>
+    </div>
+    """
+    st.markdown(html_content, unsafe_allow_html=True)
 
 
 # ── Bar chart ─────────────────────────────────────────────────────────────────
@@ -300,6 +390,18 @@ def render_topic_inputs(subjects: list[str]) -> dict[str, list[str]]:
 
 # ── Daily checklist schedule ──────────────────────────────────────────────────
 
+def toggle_day_complete(day_id: int):
+    completed_key = "completed_days"
+    if completed_key not in st.session_state:
+        st.session_state[completed_key] = set()
+    
+    checkbox_key = f"day_complete_{day_id}"
+    if st.session_state.get(checkbox_key, False):
+        st.session_state[completed_key].add(day_id)
+    else:
+        st.session_state[completed_key].discard(day_id)
+
+
 def render_daily_schedule(schedule: list[dict], style: str, include_tips: bool):
     st.markdown("### 🗓️ Daily Study Schedule")
 
@@ -338,15 +440,13 @@ def render_daily_schedule(schedule: list[dict], style: str, include_tips: bool):
             if not is_exam:
                 day_id = day["day_number"]
                 is_done = day_id in st.session_state[completed_key]
-                checked = st.checkbox(
+                st.checkbox(
                     "✅ Mark this day as complete",
                     value=is_done,
                     key=f"day_complete_{day_id}",
+                    on_change=toggle_day_complete,
+                    args=(day_id,),
                 )
-                if checked:
-                    st.session_state[completed_key].add(day_id)
-                else:
-                    st.session_state[completed_key].discard(day_id)
 
             # Tasks
             if day["tasks"]:

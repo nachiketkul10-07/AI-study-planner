@@ -319,7 +319,6 @@ def render_pomodoro_timer():
   function setMode(mode) {
     currentMode = mode;
     document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('btn-' + mode).classList.active;
     if (mode === 'pomodoro') document.getElementById('btn-pomodoro').classList.add('active');
     else document.getElementById('btn-deepwork').classList.add('active');
 

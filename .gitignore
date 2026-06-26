@@ -19,3 +19,8 @@ saved_plans/
 
 # Streamlit
 .streamlit/
+
+# SQLite Database
+study_planner.db
+study_planner.db-journal
+study_planner.db-wal
