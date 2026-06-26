@@ -176,8 +176,10 @@ def render_study_heatmap(schedule: list[dict]):
         hovertext=hover,
         hovertemplate="%{hovertext}<extra></extra>",
         showscale=True,
-        colorbar=dict(title="Hours", titlefont=dict(color="#888"),
-                       tickfont=dict(color="#888")),
+        colorbar=dict(
+            title=dict(text="Hours", font=dict(color="#888")),
+            tickfont=dict(color="#888"),
+        ),
         xgap=3,
         ygap=3,
         connectgaps=False,
