@@ -76,7 +76,19 @@ Streamlit will open the app at `http://localhost:8501`
 - **Streamlit** — UI framework
 - **Pandas** — Data handling for charts
 - **Plotly** — Interactive analytics visualisations
-- No external APIs required
+- No external AI or scheduling APIs required
+
+## NexPulse telemetry integration
+
+This app reports study-plan generation events, duration/success metrics, and privacy-safe logs to NexPulse from its Streamlit server. In Streamlit Community Cloud, open the app's **Settings → Secrets** and add the following TOML, replacing the service identifier and key with the values from the NexPulse service detail page:
+
+```toml
+NEXPULSE_INGEST_URL = "https://nexplus-nachiket-space.vercel.app/api/v1/telemetry/events"
+NEXPULSE_SERVICE_ID = "your-exact-service-identifier"
+NEXPULSE_INGEST_KEY = "your-new-ingestion-key"
+```
+
+Never commit the ingestion key or a local `.streamlit/secrets.toml` file. Telemetry is best-effort: the planner keeps working if NexPulse is unreachable or not configured.
 
 ## 📄 License
 

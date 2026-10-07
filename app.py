@@ -3,8 +3,12 @@ app.py — AI Study Planner — Main Streamlit Application
 Run with: streamlit run app.py
 """
 
-import streamlit as st
+import time
 from datetime import date, timedelta
+
+import streamlit as st
+
+from nexpulse_telemetry import report_plan_generation
 
 from utils.validators import (
     parse_subjects,
@@ -202,6 +206,7 @@ with left_col:
 # ══════════════════════════════════════════════════════════════════════════════
 
 if generate_clicked:
+    generation_started = time.perf_counter()
     # Reset completed days on new generation
     st.session_state["completed_days"] = set()
 
@@ -226,50 +231,57 @@ if generate_clicked:
             with right_col:
                 render_error(err)
         st.session_state["schedule_generated"] = False
+        report_plan_generation("validation_error", (time.perf_counter() - generation_started) * 1000, "InputValidationError")
     else:
-        # Build the plan
-        schedule = build_daily_schedule(
-            subjects=subjects,
-            difficulties=difficulties,
-            exam_date=exam_date,
-            daily_hours=daily_hours,
-            style=style,
-            include_recovery=include_recovery,
-            topics=topics if topics else None,
-        )
+        # Build and persist the plan. Telemetry failures never affect this flow.
+        try:
+            schedule = build_daily_schedule(
+                subjects=subjects,
+                difficulties=difficulties,
+                exam_date=exam_date,
+                daily_hours=daily_hours,
+                style=style,
+                include_recovery=include_recovery,
+                topics=topics if topics else None,
+            )
 
-        total_study_hours = daily_hours * max(days_remaining(exam_date) - 1, 1)
-        allocation = allocate_hours(subjects, difficulties, total_study_hours)
+            total_study_hours = daily_hours * max(days_remaining(exam_date) - 1, 1)
+            allocation = allocate_hours(subjects, difficulties, total_study_hours)
 
-        markdown_export = build_markdown_export(
-            subjects=subjects,
-            difficulties=difficulties,
-            exam_date=exam_date,
-            daily_hours=daily_hours,
-            style=style,
-            include_recovery=include_recovery,
-            include_tips=include_tips,
-            schedule=schedule,
-            allocation=allocation,
-            topics=topics if topics else None,
-        )
+            markdown_export = build_markdown_export(
+                subjects=subjects,
+                difficulties=difficulties,
+                exam_date=exam_date,
+                daily_hours=daily_hours,
+                style=style,
+                include_recovery=include_recovery,
+                include_tips=include_tips,
+                schedule=schedule,
+                allocation=allocation,
+                topics=topics if topics else None,
+            )
 
-        # Persist in session state
-        st.session_state.update({
-            "schedule_generated": True,
-            "schedule": schedule,
-            "subjects": subjects,
-            "difficulties": difficulties,
-            "exam_date": exam_date,
-            "daily_hours": daily_hours,
-            "style": style,
-            "include_recovery": include_recovery,
-            "include_tips": include_tips,
-            "allocation": allocation,
-            "markdown_export": markdown_export,
-            "completed_days": set(),
-            "topics": topics,
-        })
+            # Persist in session state
+            st.session_state.update({
+                "schedule_generated": True,
+                "schedule": schedule,
+                "subjects": subjects,
+                "difficulties": difficulties,
+                "exam_date": exam_date,
+                "daily_hours": daily_hours,
+                "style": style,
+                "include_recovery": include_recovery,
+                "include_tips": include_tips,
+                "allocation": allocation,
+                "markdown_export": markdown_export,
+                "completed_days": set(),
+                "topics": topics,
+            })
+        except Exception as exc:
+            report_plan_generation("error", (time.perf_counter() - generation_started) * 1000, type(exc).__name__)
+            raise
+        else:
+            report_plan_generation("success", (time.perf_counter() - generation_started) * 1000)
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  RIGHT COLUMN — Output (Tabbed Layout)
