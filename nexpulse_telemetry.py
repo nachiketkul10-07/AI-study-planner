@@ -1,14 +1,19 @@
 """Best-effort server-side telemetry reporting to NexPulse."""
 
+
 import logging
 from typing import Any
 from urllib.parse import urlparse
 
+
 import requests
 import streamlit as st
 
+
 logger = logging.getLogger(__name__)
 DEFAULT_INGEST_URL = "https://nexplus-nachiket-space.vercel.app/api/v1/telemetry/events"
+
+
 
 
 def _send(resource: str, payload: dict[str, Any]) -> bool:
@@ -21,9 +26,11 @@ def _send(resource: str, payload: dict[str, Any]) -> bool:
         logger.info("NexPulse telemetry is not configured; skipping report.")
         return False
 
+
     if not isinstance(key, str) or not key.strip():
         logger.warning("NexPulse telemetry credential is empty; skipping report.")
         return False
+
 
     # Accept either the full events URL used in setup instructions or the API base URL.
     parsed_url = urlparse(ingest_url)
@@ -50,13 +57,25 @@ def _send(resource: str, payload: dict[str, Any]) -> bool:
             reason_code = "other_http_error"
             if response.status_code == 401:
                 try:
-                    message = response.json().get("error", {}).get("message", "")
+                    response_body = response.json()
+                    message = ""
+                    if isinstance(response_body, dict):
+                        error = response_body.get("error")
+                        if isinstance(error, dict):
+                            message = error.get("message", "")
+                        if not message:
+                            message = response_body.get("detail", response_body.get("message", ""))
+                    if not isinstance(message, str):
+                        message = ""
                 except (ValueError, AttributeError):
                     message = ""
-                reason_code = {
-                    "Invalid service ingestion key": "invalid_ingest_key",
-                    "Missing service ingestion credential (X-Ingest-Key, X-Service-Key, or Bearer token required)": "missing_credential",
-                }.get(message, "unauthorized")
+                normalized_message = message.strip().lower()
+                if "invalid service ingestion key" in normalized_message:
+                    reason_code = "invalid_ingest_key"
+                elif "missing service ingestion credential" in normalized_message:
+                    reason_code = "missing_credential"
+                else:
+                    reason_code = "unauthorized"
             logger.warning("NexPulse rejected %s telemetry HTTP %s (reason=%s).", resource, response.status_code, reason_code)
             return False
         return True
@@ -65,12 +84,15 @@ def _send(resource: str, payload: dict[str, Any]) -> bool:
         return False
 
 
+
+
 def report_plan_generation(outcome: str, duration_ms: int, error_type: str | None = None) -> None:
     """Report a plan-generation event, metrics, and a privacy-safe log."""
     success = outcome == "success"
     validation_error = outcome == "validation_error"
     status_code = 200 if success else 400 if validation_error else 500
     duration_ms = max(0, int(duration_ms))
+
 
     event: dict[str, Any] = {
         "method": "POST",
@@ -82,6 +104,7 @@ def report_plan_generation(outcome: str, duration_ms: int, error_type: str | Non
     if error_type:
         event["error_type"] = error_type[:160]
     _send("events", event)
+
 
     _send("metrics", {
         "metric_name": "study_plan_generation_success",
@@ -95,6 +118,7 @@ def report_plan_generation(outcome: str, duration_ms: int, error_type: str | Non
         "window_seconds": 60,
         "labels": {"outcome": "success" if success else "validation_error" if validation_error else "error"},
     })
+
 
     _send("logs", {
         "level": "INFO" if success else "WARN" if validation_error else "ERROR",
