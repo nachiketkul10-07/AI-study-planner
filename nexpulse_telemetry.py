@@ -21,6 +21,10 @@ def _send(resource: str, payload: dict[str, Any]) -> bool:
         logger.info("NexPulse telemetry is not configured; skipping report.")
         return False
 
+    if not isinstance(key, str) or not key.strip():
+        logger.warning("NexPulse telemetry credential is empty; skipping report.")
+        return False
+
     # Accept either the full events URL used in setup instructions or the API base URL.
     parsed_url = urlparse(ingest_url)
     if (
@@ -43,7 +47,17 @@ def _send(resource: str, payload: dict[str, Any]) -> bool:
             timeout=5,
         )
         if response.status_code != 202:
-            logger.warning("NexPulse rejected %s telemetry with HTTP %s.", resource, response.status_code)
+            reason_code = "other_http_error"
+            if response.status_code == 401:
+                try:
+                    message = response.json().get("error", {}).get("message", "")
+                except (ValueError, AttributeError):
+                    message = ""
+                reason_code = {
+                    "Invalid service ingestion key": "invalid_ingest_key",
+                    "Missing service ingestion credential (X-Ingest-Key, X-Service-Key, or Bearer token required)": "missing_credential",
+                }.get(message, "unauthorized")
+            logger.warning("NexPulse rejected %s telemetry HTTP %s (reason=%s).", resource, response.status_code, reason_code)
             return False
         return True
     except requests.RequestException as exc:
