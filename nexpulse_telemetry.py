@@ -36,7 +36,7 @@ def _send(resource: str, payload: dict[str, Any]) -> bool:
     parsed_url = urlparse(ingest_url)
     if (
         parsed_url.scheme != "https"
-        or parsed_url.netloc != "nexplus-nachiket-space.vercel.app"
+        or parsed_url.netloc != "nexplus-flame.vercel.app"
         or parsed_url.path not in {"/api/v1/telemetry", "/api/v1/telemetry/events"}
         or parsed_url.query
         or parsed_url.fragment
