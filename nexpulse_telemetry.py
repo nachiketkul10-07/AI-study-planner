@@ -11,7 +11,7 @@ import streamlit as st
 
 
 logger = logging.getLogger(__name__)
-DEFAULT_INGEST_URL = "https://nexplus-nachiket-space.vercel.app/api/v1/telemetry/events"
+DEFAULT_INGEST_URL = "https://nexplus-flame.vercel.app/api/v1/telemetry/events"
 
 
 
