@@ -32,17 +32,22 @@ def _send(resource: str, payload: dict[str, Any]) -> bool:
         return False
 
 
-    # Accept either the full events URL used in setup instructions or the API base URL.
+    # Only allow NexPulse production hosts. Route the protected project domain
+    # through its verified public alias for server-to-server telemetry.
     parsed_url = urlparse(ingest_url)
+    allowed_hosts = {"nexplus-flame.vercel.app", "nexplus-nachiket-space.vercel.app"}
     if (
         parsed_url.scheme != "https"
-        or parsed_url.netloc != "nexplus-flame.vercel.app"
+        or parsed_url.netloc.lower() not in allowed_hosts
         or parsed_url.path not in {"/api/v1/telemetry", "/api/v1/telemetry/events"}
         or parsed_url.query
         or parsed_url.fragment
     ):
         logger.warning("NexPulse telemetry URL is invalid; not sending telemetry.")
         return False
+    if parsed_url.netloc.lower() == "nexplus-nachiket-space.vercel.app":
+        parsed_url = parsed_url._replace(netloc="nexplus-flame.vercel.app")
+        ingest_url = parsed_url.geturl().rstrip("/")
     if ingest_url.endswith("/events"):
         ingest_url = ingest_url[:-len("/events")]
     body = {"service_id": service_id, **payload}
